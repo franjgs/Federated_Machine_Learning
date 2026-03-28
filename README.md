@@ -5,53 +5,70 @@
 [![Library: Scikit-Learn](https://img.shields.io/badge/Library-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
 
 ## 📌 Resumen del Sistema
-Este TFG implementa un sistema de diagnóstico médico distribuido. El modelo se entrena inicialmente en un entorno hospitalario (usando el dataset `HAM10000`) y se despliega en una aplicación móvil para **Edge Inferencia**. El sistema evoluciona mediante **Federated Learning**, donde el dispositivo del usuario mejora el modelo global enviando gradientes tras una confirmación médica, sin compartir nunca la imagen original.
+Este TFG implementa un sistema de diagnóstico médico distribuido para la clasificación de lesiones cutáneas. El modelo se entrena inicialmente en un entorno hospitalario (usando el dataset `HAM10000`) y se despliega en una aplicación móvil para **Edge Inferencia**. El sistema evoluciona mediante **Federated Learning**, donde el dispositivo móvil mejora el modelo global enviando "paquetes federados" tras una confirmación médica, garantizando que los datos brutos (imágenes) nunca abandonen el terminal del usuario.
 
 ---
 
-## 🏗️ Arquitectura del Flujo de Datos
+## 🏗️ Arquitectura del Sistema y Flujo de Datos
 
-### 1. Fase de Servidor (Hospital)
-* **Entrenamiento Inicial:** Se utiliza un repositorio centralizado (`HAM10000`) para generar un modelo base (SVM/CNN).
-* **Protección del Modelo:** Los pesos del modelo se empaquetan para su despliegue en el Edge, con capas de abstracción para prevenir ingeniería inversa por parte del usuario.
+### 1. Servidor Central (Hospital)
+* **Entrenamiento Inicial:** Orquestador responsable de entrenar el modelo global inicial utilizando el dataset centralizado `HAM10000`.
+* **Despliegue:** Una vez entrenado, el servidor exporta y despliega el modelo (`global_model.pkl`) y el escalador (`global_scaler.pkl`) a los nodos Edge.
+* **Agregación Federada:** Recibe las actualizaciones locales (características procesadas con ruido de privacidad) y actualiza el modelo maestro mediante re-entrenamiento incremental.
 
-### 2. Fase de Nodo Edge (App Móvil del Usuario)
-El móvil ejecuta el pipeline técnico definido en los scripts `test_segmentation.py` y `skin_lesions_classifier.py`:
-* **Captura y Preprocesado:** La cámara captura la lesión; el sistema aplica filtros de normalización.
-* **Segmentación:** Basado en `skimage`, se aísla la lesión de la piel sana creando una máscara binaria.
-* **Extracción de Características (Input Data):** Se calculan las métricas ABCD (Asimetría, Borde, Color, Diámetro) y texturas (GLCM). Este vector de características es el **dato de entrada real** para el modelo.
-* **Predicción Local:** El modelo residente en el móvil genera un pre-diagnóstico instantáneo.
-
-### 3. Fase de Aprendizaje Federado (Federated Update)
-* **Validación Clínica:** El usuario acude al médico, quien confirma o corrige la etiqueta (`label`).
-* **Generación de Gradientes:** Con la etiqueta confirmada, la App ejecuta un entrenamiento local sobre el vector de características guardado para calcular los gradientes de error.
-* **Transmisión Privada:** Solo se transmiten los gradientes numéricos al servidor del hospital.
-* **Agregación Global:** El servidor combina los gradientes de miles de usuarios para actualizar el modelo maestro, cerrando el ciclo de aprendizaje sin comprometer la privacidad (Privacy-Preserving).
+### 2. Nodos Edge (App Móvil del Usuario)
+* **Inferencia Local:** Realiza el pre-diagnóstico instantáneo sobre la imagen capturada.
+* **Segmentación y Extracción:** Ejecuta el pipeline de visión para aislar la lesión y calcular los descriptores clínicos (ABCD).
+* **Privacidad Diferencial:** Antes de enviar datos para el aprendizaje federado, aplica ruido Gaussiano a las características para asegurar el anonimato y cumplimiento de privacidad.
 
 ---
 
-## 🛠️ Módulos Técnicos Extraídos del Código
+## 🛠️ Implementación Técnica (Estructura de Directorios)
 
-### Pipeline de Visión (`test_segmentation.py`)
-* **`get_skin_lesion_mask`**: Algoritmo de segmentación para aislar la patología.
-* **`get_asymmetry`, `get_border_irregularity`**: Funciones de extracción de descriptores clínicos que alimentan el modelo.
-* **Análisis de Textura**: Uso de `graycomatrix` para obtener la entropía y contraste de la lesión.
+El proyecto está organizado en módulos para separar la lógica de negocio de la infraestructura:
 
-### Pipeline de Clasificación (`skin_lesions_classifier.py`)
-* **`StandardScaler`**: Normalización de los datos de entrada en el móvil para asegurar la convergencia del modelo.
-* **SVM / Support Vector Machine**: Clasificador de alta eficiencia para dispositivos móviles que permite una actualización de pesos ligera para redes móviles.
-* **Métricas de Evaluación**: `classification_report` para validar el rendimiento del modelo global tras la agregación federada.
+* **`src/utils/vision_logic.py`**: Contiene la inteligencia de visión artificial.
+    * `get_skin_lesion_mask()`: Segmentación basada en umbrales de Otsu y morfología.
+    * `extract_abcd_features()`: Extracción de descriptores de Asimetría, Borde, Color, Diámetro y Textura.
+* **`src/hospital_server.py`**: Gestión del servidor central.
+    * Carga y procesado del dataset `HAM10000`.
+    * Entrenamiento mediante `GridSearchCV` y `SVM`.
+    * Módulo de agregación federada.
+* **`src/mobile_app.py`**: Lógica de la aplicación cliente.
+    * Gestión de inferencia local.
+    * Generación de paquetes de actualización con Privacidad Diferencial.
+
+---
+
+## 🔄 Flujo de Trabajo (Workflow)
+
+| Fase | Acción | Ubicación | Tecnología |
+| :--- | :--- | :--- | :--- |
+| **1. Seed** | Entrenamiento inicial con HAM10000 | Hospital | Scikit-Learn (SVM) |
+| **2. Edge** | Captura, Segmentación y Extracción | Móvil | OpenCV / Scikit-Image |
+| **3. Predict** | Inferencia local (Pre-diagnóstico) | Móvil | Model Persistence (Joblib) |
+| **4. Label** | Validación Médica (Confirmación) | Hospital | Intervención Clínica |
+| **5. Update** | Generación de Paquete Federado (LDP) | Móvil | NumPy (Ruido Gaussiano) |
+| **6. Sync** | Actualización del Modelo Global | Hospital | Federated Aggregation |
+
+---
+
+## 📈 Evaluación y Métricas
+El sistema evalúa el rendimiento del modelo global tras las rondas de aprendizaje federado utilizando:
+* **Precisión (Accuracy)** y **F1-Score**.
+* **Matriz de Confusión**: Visualización de falsos positivos/negativos en el diagnóstico de melanoma.
+* **Robustez de Privacidad**: Evaluación del impacto del ruido de Privacidad Diferencial en la precisión del modelo.
 
 ---
 
 ## ⚖️ Justificación de Ingeniería
-1.  **Privacidad (GDPR):** La imagen nunca sale del terminal. El hospital solo recibe vectores matemáticos de actualización.
-2.  **Optimización de Red:** El envío de gradientes (KB) es órdenes de magnitud más eficiente que el envío de imágenes médicas (MB), ideal para redes móviles.
-3.  **Seguridad del Modelo:** Implementación de técnicas de protección de pesos para evitar que el usuario final acceda a la lógica propietaria del hospital.
-4.  **Aprendizaje Continuo:** El modelo mejora con casos reales del "mundo real" validados por médicos, superando las limitaciones de los datasets estáticos.
+1.  **Privacidad (GDPR/HIPAA):** La imagen original es destruida tras la extracción; solo viajan vectores matemáticos anonimizados.
+2.  **Optimización de Red:** El envío de un vector de características (bytes) es drásticamente más eficiente que el envío de imágenes (MB), permitiendo su uso en redes móviles limitadas.
+3.  **Edge Computing:** Se traslada la carga computacional del preprocesado de imágenes al dispositivo del usuario, permitiendo escalabilidad masiva.
+4.  **Aprendizaje Continuo:** El sistema no es estático; se nutre de la validación médica diaria para mejorar la detección de patologías raras.
 
 ---
 
 **Autor:** Paula Calvo  
 **Tutor:** Fran J. Glez  
-**Universidad:** uc3m.es
+**Universidad:** [uc3m.es](https://www.uc3m.es)
