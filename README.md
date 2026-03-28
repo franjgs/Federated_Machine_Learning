@@ -1,69 +1,54 @@
-# Melanoma Detection System: Edge Computing & Federated Learning
+# Melanoma Detection System: Edge Computing & Federated Learning Framework
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![Framework: Flower](https://img.shields.io/badge/Framework-Flower-orange.svg)](https://flower.ai/)
+[![Library: Scikit-Image](https://img.shields.io/badge/Library-Scikit--Image-green.svg)](https://scikit-image.org/)
+[![Library: Scikit-Learn](https://img.shields.io/badge/Library-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
 
-## 📌 Resumen del Proyecto
-Este TFG presenta el diseño y evaluación de un sistema de **Edge Computing** para el diagnóstico de lesiones cutáneas sobre redes móviles. La solución utiliza un enfoque de **Aprendizaje Federado (Federated Learning)** para permitir que el modelo global aprenda de nuevos diagnósticos médicos locales sin que las imágenes privadas del paciente abandonen nunca el dispositivo móvil.
-
-El sistema combina el análisis de reglas clínicas tradicionales (**ABCDT**) con técnicas modernas de inteligencia artificial distribuida, optimizando el payload para entornos de red celular limitada.
-
----
-
-## 🏗️ Arquitectura Lógica
-La arquitectura se divide en dos planos principales:
-
-1.  **Nodo Edge (El Smartphone):** No es solo un cliente, es un laboratorio de preprocesado. Realiza la segmentación, normalización y extracción de características en local.
-2.  **Aggregator (El Hospital):** Donde reside la inteligencia colectiva. Recibe gradientes (no imágenes), los agrega y actualiza el modelo global.
+## 📌 Resumen del Sistema
+Este TFG implementa un sistema de diagnóstico médico distribuido. El modelo se entrena inicialmente en un entorno hospitalario (usando el dataset `HAM10000`) y se despliega en una aplicación móvil para **Edge Inferencia**. El sistema evoluciona mediante **Federated Learning**, donde el dispositivo del usuario mejora el modelo global enviando gradientes tras una confirmación médica, sin compartir nunca la imagen original.
 
 ---
 
-## 🛠️ Definición de Módulos (Basado en el Stack de Desarrollo)
+## 🏗️ Arquitectura del Flujo de Datos
 
-### A. Procesamiento en el Edge
-Funcionalidades extraídas y adaptadas de `test_segmentation.py` y `skin_lesions_classifier.py`:
+### 1. Fase de Servidor (Hospital)
+* **Entrenamiento Inicial:** Se utiliza un repositorio centralizado (`HAM10000`) para generar un modelo base (SVM/CNN).
+* **Protección del Modelo:** Los pesos del modelo se empaquetan para su despliegue en el Edge, con capas de abstracción para prevenir ingeniería inversa por parte del usuario.
 
-* **Módulo de Visión (OpenCV + TFLite):**
-    * **Segmentación:** Implementación de red U-Net para generar máscaras binarias precisas de la lesión.
-    * **Normalización:** Algoritmo *Gray World* para balance de blancos y reescalado a densidad de píxeles constante (300 ppp) mediante referencia física.
-* **Feature Engineering (Reglas Médicas):**
-    * Codificación de reglas **TDS/Stolz**. Cálculo de descriptores geométricos (Asimetría, Compactitud) y colorimétricos (Varianza cromática).
-    * Generación del vector de características $x = [A, B, C, D, T]$ para el clasificador local.
-* **Entrenamiento Local (On-Device Training):**
-    * Tras la validación médica del diagnóstico, el móvil ejecuta un paso de optimización (**SGD**) usando la imagen local y la etiqueta real.
-    * **Privacidad:** Aplicación de **Local Differential Privacy (LDP)** añadiendo ruido gaussiano a los gradientes antes de la transmisión.
+### 2. Fase de Nodo Edge (App Móvil del Usuario)
+El móvil ejecuta el pipeline técnico definido en los scripts `test_segmentation.py` y `skin_lesions_classifier.py`:
+* **Captura y Preprocesado:** La cámara captura la lesión; el sistema aplica filtros de normalización.
+* **Segmentación:** Basado en `skimage`, se aísla la lesión de la piel sana creando una máscara binaria.
+* **Extracción de Características (Input Data):** Se calculan las métricas ABCD (Asimetría, Borde, Color, Diámetro) y texturas (GLCM). Este vector de características es el **dato de entrada real** para el modelo.
+* **Predicción Local:** El modelo residente en el móvil genera un pre-diagnóstico instantáneo.
 
-### B. Protocolo de Comunicación y Privacidad
-* **Secure Aggregation (SecAgg):** Los gradientes se cifran para que el servidor solo vea la suma promedio, protegiendo los cambios individuales.
-* **Optimización Celular:** Mitigación de latencia mediante **cuantización de gradientes (INT8)** y serialización vía **Protocol Buffers**, minimizando el consumo de batería y datos.
-
----
-
-## 🔄 Flujo de Trabajo (Workflow)
-
-| Paso | Acción | Ubicación | Tecnología |
-| :--- | :--- | :--- | :--- |
-| 1 | Captura e Inferencia inicial (TDS) | Móvil | OpenCV / TFLite |
-| 2 | Almacenamiento Cifrado (Sandbox) | Móvil | AES-256 |
-| 3 | Validación Médica (Etiquetado) | Hospital | Intervención Humana |
-| 4 | Cálculo de Gradientes (Entrenamiento) | Móvil | TensorFlow Federated |
-| 5 | Transmisión Eficiente | Red Móvil | gRPC + Cuantización |
-| 6 | Agregación de pesos y actualización | Servidor | Flower Framework |
+### 3. Fase de Aprendizaje Federado (Federated Update)
+* **Validación Clínica:** El usuario acude al médico, quien confirma o corrige la etiqueta (`label`).
+* **Generación de Gradientes:** Con la etiqueta confirmada, la App ejecuta un entrenamiento local sobre el vector de características guardado para calcular los gradientes de error.
+* **Transmisión Privada:** Solo se transmiten los gradientes numéricos al servidor del hospital.
+* **Agregación Global:** El servidor combina los gradientes de miles de usuarios para actualizar el modelo maestro, cerrando el ciclo de aprendizaje sin comprometer la privacidad (Privacy-Preserving).
 
 ---
 
-## ⚖️ Justificación de la Solución (Valor TFG)
-* **Cumplimiento Legal (GDPR/HIPAA):** Al no viajar imágenes por la red, el riesgo de filtración de datos sensibles se reduce a cero.
-* **Escalabilidad:** El coste computacional se distribuye entre miles de nodos Edge, reduciendo la carga en los servidores del hospital.
-* **Robustez Médica:** El modelo no depende solo de píxeles, sino de reglas clínicas validadas, evitando sesgos por artefactos en las imágenes.
-* **Viabilidad Móvil:** Diseño adaptado a las restricciones de ancho de banda y energía de los dispositivos móviles modernos.
+## 🛠️ Módulos Técnicos Extraídos del Código
+
+### Pipeline de Visión (`test_segmentation.py`)
+* **`get_skin_lesion_mask`**: Algoritmo de segmentación para aislar la patología.
+* **`get_asymmetry`, `get_border_irregularity`**: Funciones de extracción de descriptores clínicos que alimentan el modelo.
+* **Análisis de Textura**: Uso de `graycomatrix` para obtener la entropía y contraste de la lesión.
+
+### Pipeline de Clasificación (`skin_lesions_classifier.py`)
+* **`StandardScaler`**: Normalización de los datos de entrada en el móvil para asegurar la convergencia del modelo.
+* **SVM / Support Vector Machine**: Clasificador de alta eficiencia para dispositivos móviles que permite una actualización de pesos ligera para redes móviles.
+* **Métricas de Evaluación**: `classification_report` para validar el rendimiento del modelo global tras la agregación federada.
 
 ---
 
-## 📂 Estructura de Archivos Adaptada
-* `skin_lesions_classifier.py`: Lógica del clasificador local, normalización con `StandardScaler` y gestión de etiquetas.
-* `test_segmentation.py`: Pipeline de preprocesamiento, máscaras de segmentación y extracción de parámetros biomédicos.
+## ⚖️ Justificación de Ingeniería
+1.  **Privacidad (GDPR):** La imagen nunca sale del terminal. El hospital solo recibe vectores matemáticos de actualización.
+2.  **Optimización de Red:** El envío de gradientes (KB) es órdenes de magnitud más eficiente que el envío de imágenes médicas (MB), ideal para redes móviles.
+3.  **Seguridad del Modelo:** Implementación de técnicas de protección de pesos para evitar que el usuario final acceda a la lógica propietaria del hospital.
+4.  **Aprendizaje Continuo:** El modelo mejora con casos reales del "mundo real" validados por médicos, superando las limitaciones de los datasets estáticos.
 
 ---
 
