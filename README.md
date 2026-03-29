@@ -75,7 +75,3 @@ El sistema evalúa el rendimiento del modelo global tras las rondas de aprendiza
 **Universidad:** [uc3m.es](https://www.uc3m.es)
 """
 
-with open("README.md", "w") as f:
-    f.write(readme_content)
-
-print("README.md saved successfully!")
