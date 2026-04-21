@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.DS_Store
+
+# Entornos
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Datos y artefactos generados
+data/processed/
+data/artifacts/
+
+# Dataset bruto local
+data/raw/ham10000/
+
+# Logs
+*.log
+
+notebooks/skin_lesions_classifier.ipynb
+skin_lesions_classifier.ipynb
