@@ -1,15 +1,11 @@
-<<<<<<< HEAD
-# Federated Skin Lesion Classification
-=======
-readme_content = """
 # Melanoma Detection System: Federated Learning Framework
 
->>>>>>> 13b0a9206ac70509a0dcf413ff06d2a4a30790f3
+
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Library: Scikit-Image](https://img.shields.io/badge/Library-Scikit--Image-green.svg)](https://scikit-image.org/)
 [![Library: Scikit-Learn](https://img.shields.io/badge/Library-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
 
-<<<<<<< HEAD
+
 ## TFG sobre Edge Computing y Aprendizaje Federado para diagnóstico asistido de lesiones cutáneas
 
 Este repositorio recoge el desarrollo de un **Trabajo Fin de Grado (TFG)** centrado en el diseño y evaluación de un sistema de **clasificación de lesiones cutáneas** basado en **visión artificial, edge computing y aprendizaje federado**.
@@ -216,12 +212,6 @@ La organización actual del proyecto responde a varias decisiones de diseño rel
 
 ---
 
-## 👩‍💻 Autoría
-
-**Autora del TFG:** Paula Calvo  
-**Tutor:** Fran J. Glez  
-**Universidad:** Universidad Carlos III de Madrid
-=======
 ## 📌 Resumen del Sistema
 Este proyecto implementa un sistema de Aprendizaje Federado (FL) para la clasificación de lesiones de piel, centrándose en la privacidad. A diferencia del aprendizaje tradicional, donde los datos se centralizan, aquí el modelo "viaja" a los dispositivos móviles para entrenarse localmente. El sistema simula cómo el modelo aprende cuando cada hospital o móvil tiene datos muy diferentes (sesgo de clase) y aplica Privacidad Diferencial mediante la adición de ruido gaussiano en los pesos del modelo para garantizar que los datos biomédicos nunca abandonan el dispositivo del usuario.
 
@@ -292,4 +282,3 @@ El sistema evalúa el rendimiento del modelo global tras las rondas de aprendiza
 **Universidad:** [uc3m.es](https://www.uc3m.es)
 """
 
->>>>>>> 13b0a9206ac70509a0dcf413ff06d2a4a30790f3
