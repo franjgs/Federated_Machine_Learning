@@ -1,10 +1,8 @@
-# Melanoma Detection System: Federated Learning Framework
-
+# Federated Skin Lesion Classification
 
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![Library: Scikit-Image](https://img.shields.io/badge/Library-Scikit--Image-green.svg)](https://scikit-image.org/)
 [![Library: Scikit-Learn](https://img.shields.io/badge/Library-Scikit--Learn-orange.svg)](https://scikit-learn.org/)
-
 
 ## TFG sobre Edge Computing y Aprendizaje Federado para diagnóstico asistido de lesiones cutáneas
 
@@ -12,42 +10,59 @@ Este repositorio recoge el desarrollo de un **Trabajo Fin de Grado (TFG)** centr
 
 La motivación del proyecto surge de un problema real en aplicaciones biomédicas: los datos son sensibles, difíciles de centralizar y, a menudo, se generan en entornos distribuidos. Frente al enfoque clásico de recopilar todas las imágenes en un único servidor para entrenar un modelo, este trabajo estudia una alternativa en la que parte del procesamiento y del aprendizaje se desplaza hacia el borde de la red, por ejemplo a aplicaciones móviles o nodos clínicos distribuidos.
 
-El objetivo general del TFG es construir una base de software que permita explorar este enfoque de forma progresiva. En la versión actual del repositorio, el sistema se implementa como una **simulación federada en Python** usando el dataset **HAM10000** como referencia experimental. A partir de imágenes dermatoscópicas, el sistema extrae características visuales relevantes, entrena un modelo inicial en un nodo central y simula múltiples clientes que actualizan dicho modelo con datos distribuidos de forma no idéntica.
+El objetivo general del TFG es construir una base de software que permita explorar este enfoque de forma progresiva. En la versión actual del repositorio, el sistema se implementa como una **simulación federada offline en Python** usando el dataset **HAM10000** como referencia experimental. A partir de imágenes dermatoscópicas, el sistema extrae características visuales relevantes, entrena un modelo inicial en un nodo central y simula múltiples clientes que actualizan dicho modelo con datos distribuidos de forma no idéntica.
 
-Aunque esta versión todavía no constituye un despliegue federado real sobre dispositivos móviles, sí proporciona una base sólida para el desarrollo posterior del TFG, ya que permite:
+Es importante subrayar que la implementación actual **no constituye todavía un despliegue federado real** sobre dispositivos móviles ni una infraestructura cliente-servidor operando de forma distribuida. En este estado, el repositorio funciona como un **banco de pruebas experimental**, pensado para validar decisiones de diseño, estudiar el comportamiento del sistema y servir de base técnica para fases posteriores.
 
-- estudiar la evolución del modelo global a partir de actualizaciones locales,
-- analizar el efecto de distribuciones **Non-IID** entre clientes,
-- incorporar mecanismos simples de privacidad, como ruido gaussiano en las actualizaciones,
-- diferenciar conceptualmente un **nodo central** y un **nodo edge/móvil**,
+Precisamente, uno de los objetivos del TFG es que esta base evolucione hacia una arquitectura más realista, en la que exista:
+
+- un **nodo central hospitalario** ejecutándose como servidor agregador,
+- uno o varios **nodos edge o móviles** ejecutándose como clientes independientes,
+- intercambio explícito de estados o actualizaciones del modelo,
+- separación real entre entrenamiento local y agregación central,
+- y, eventualmente, mecanismos de comunicación y sincronización más cercanos a un entorno distribuido real.
+
+Aunque la versión actual sea offline, ya permite:
+
+- estudiar la evolución del modelo global a partir de actualizaciones locales;
+- analizar el efecto de distribuciones **Non-IID** entre clientes;
+- incorporar mecanismos simples de privacidad, como ruido gaussiano en las actualizaciones;
+- diferenciar conceptualmente un **nodo central** y un **nodo edge/móvil**;
 - y organizar el software de forma modular para facilitar futuras extensiones.
 
 Desde el punto de vista académico, el trabajo se sitúa en la intersección de varias áreas:
 
-- aprendizaje automático aplicado a imagen médica,
-- aprendizaje federado,
-- computación en el borde,
-- privacidad en sistemas distribuidos,
+- aprendizaje automático aplicado a imagen médica;
+- aprendizaje federado;
+- computación en el borde;
+- privacidad en sistemas distribuidos;
 - y arquitectura de software científico reproducible.
 
-El repositorio sirve así tanto como soporte técnico del TFG como entorno de experimentación, y también como punto de entrada para que una nueva desarrolladora pueda comprender el proyecto y evolucionarlo hacia versiones más realistas.
+El repositorio sirve así tanto como soporte técnico del TFG como entorno de experimentación, y también como punto de entrada para que una nueva desarrolladora pueda comprender el proyecto, identificar sus bloques funcionales y evolucionarlo hacia versiones más realistas.
 
 ## 🏗️ Arquitectura del sistema
 
-La versión actual del proyecto se apoya en una arquitectura modular que distingue claramente entre el **nodo central** y los **clientes simulados inspirados en nodos edge**, además de separar las responsabilidades de procesamiento de imagen, construcción de dataset, modelado, simulación federada y generación de resultados.
+La arquitectura del proyecto está diseñada con una doble perspectiva:
+
+- por un lado, **dar soporte a la simulación federada offline actual**;
+- por otro, **preparar una evolución futura hacia un entorno distribuido más realista**, con separación efectiva entre servidor hospitalario y clientes edge.
+
+Por eso, la organización del código distingue entre procesamiento de imagen, construcción de dataset, modelado, simulación federada, reporting y módulos específicos de servidor y cliente.
 
 ### 1. Nodo central
 
 El nodo central representa el papel del hospital o servidor agregador dentro del sistema federado. Sus funciones principales son:
 
 - **entrenamiento inicial del modelo global**, a partir de un conjunto semilla de ejemplos etiquetados;
-- **recepción y agregación de actualizaciones locales** generadas por los clientes simulados;
+- **recepción y agregación de actualizaciones locales** generadas por los clientes;
 - **evaluación continua del rendimiento** sobre un conjunto de test independiente;
 - **persistencia de artefactos**, como modelos, métricas, históricos y figuras.
 
-En esta versión, la lógica del nodo central se apoya sobre todo en la clase `FederatedGlobalModel`, en las funciones de agregación federada y en la orquestación realizada por `FederatedExperiment`.
+En la versión actual, estas funciones se implementan sobre todo dentro de la simulación offline, apoyándose en `FederatedGlobalModel`, en la lógica de agregación federada y en la orquestación realizada por `FederatedExperiment`.
 
-### 2. Clientes simulados
+Además, el repositorio incluye un módulo `server/hospital_server.py` que representa la dirección futura del proyecto: separar de manera explícita la lógica del servidor hospitalario respecto al resto del sistema.
+
+### 2. Clientes simulados y proyección edge
 
 Los clientes representan nodos distribuidos que disponen de datos locales propios y participan en el aprendizaje sin compartir imágenes brutas con el nodo central.
 
@@ -58,7 +73,9 @@ Sus responsabilidades son:
 - **simular distribuciones Non-IID**, mediante un sesgo de clase configurable;
 - **devolver una actualización local** al servidor, opcionalmente perturbada con ruido gaussiano para simular privacidad.
 
-En la simulación actual, este comportamiento se concentra en `MobileFleetSimulator` y en el método `client_update` de `FederatedGlobalModel`.
+En la implementación actual, este comportamiento se modela dentro de la simulación offline mediante `MobileFleetSimulator` y el método `client_update` de `FederatedGlobalModel`.
+
+Al mismo tiempo, el proyecto incluye el módulo `edge/mobile_app.py`, que no sustituye a la simulación actual, pero sí sirve como punto de partida para una futura transición hacia un cliente edge más realista.
 
 ### 3. Procesamiento visual y extracción de características
 
@@ -80,7 +97,8 @@ Esto permite:
 
 - reducir drásticamente el tiempo de experimentación;
 - desacoplar el procesamiento de imagen de la simulación federada;
-- facilitar comparativas entre configuraciones.
+- facilitar comparativas entre configuraciones;
+- y convertir el repositorio en una plataforma experimental más cómoda para explorar modelos y estrategias de agregación.
 
 La clase encargada de este bloque es `FeatureDatasetBuilder`.
 
@@ -130,24 +148,26 @@ federated-skin-lesion/
 ```
 ## 🔄 Flujo de ejecución del experimento
 
-La ejecución principal del proyecto se realiza a través de `experiments/run_federated_simulation.py`. De forma resumida, el flujo es el siguiente:
+La ejecución principal del proyecto, en su estado actual, se realiza a través de `experiments/run_federated_simulation.py`. Este script implementa la **simulación federada offline** sobre la que se apoyan los experimentos del repositorio.
+
+De forma resumida, el flujo es el siguiente:
 
 1. **Inicialización de rutas y configuración**  
    Se cargan los parámetros del experimento y las rutas definidas en `config/paths.py` y `config/settings.py`, incluyendo:
-   - metadatos del dataset,
-   - directorio de imágenes,
-   - rutas de caché,
+   - metadatos del dataset;
+   - directorio de imágenes;
+   - rutas de caché;
    - y directorios de salida para artefactos.
 
 2. **Construcción o carga del dataset de características**  
-   `FeatureDatasetBuilder` comprueba si existe un fichero cacheado de características.  
-   - Si existe, lo carga directamente.  
+   `FeatureDatasetBuilder` comprueba si existe un fichero cacheado de características.
+   - Si existe, lo carga directamente.
    - Si no existe, procesa las imágenes con `VisionPipeline` y genera un dataset tabular con etiquetas y variables de entrada.
 
 3. **Partición del conjunto de datos**  
    Mediante `make_train_test_split`, el dataset se divide en tres subconjuntos:
-   - `df_seed`: conjunto inicial para entrenar el modelo global,
-   - `df_pool`: conjunto desde el que se simulan los clientes federados,
+   - `df_seed`: conjunto inicial para entrenar el modelo global;
+   - `df_pool`: conjunto desde el que se simulan los clientes federados;
    - `df_test`: conjunto independiente para evaluación.
 
 4. **Entrenamiento inicial del modelo global**  
@@ -157,31 +177,33 @@ La ejecución principal del proyecto se realiza a través de `experiments/run_fe
    En cada ronda:
    - `MobileFleetSimulator` selecciona clientes simulados y asigna muestras locales;
    - cada cliente realiza una actualización local mediante `client_update`;
-   - las actualizaciones se combinan en el servidor con la lógica de agregación definida en `federation/aggregation.py`;
+   - las actualizaciones se combinan mediante la lógica definida en `federation/aggregation.py`;
    - el modelo global actualizado se evalúa sobre `df_test`.
 
 6. **Selección de checkpoints y persistencia de resultados**  
    Al finalizar la ejecución, el sistema guarda:
-   - el modelo final,
-   - el mejor modelo según `balanced_accuracy`,
-   - el mejor modelo según `macro_f1`,
-   - el histórico de métricas,
+   - el modelo final;
+   - el mejor modelo según `balanced_accuracy`;
+   - el mejor modelo según `macro_f1`;
+   - el histórico de métricas;
    - y los artefactos de evaluación generados por `reporting/reports.py`.
+
+Este flujo corresponde a la **versión experimental offline** del proyecto. La arquitectura modular actual está pensada para que, en fases posteriores del TFG, parte de estas responsabilidades puedan trasladarse a una interacción más realista entre `server/hospital_server.py` y `edge/mobile_app.py`.
 
 ---
 
 ## 📈 Evaluación y métricas
 
-La evaluación del sistema se realiza sobre un conjunto de test separado del entrenamiento y de la simulación de clientes. En la versión actual del repositorio se utilizan las siguientes métricas:
+La evaluación del sistema se realiza sobre un conjunto de test separado tanto del entrenamiento inicial como de la simulación de clientes. En la versión actual del repositorio se emplean las siguientes métricas principales:
 
 - **Accuracy**  
   Mide la proporción total de predicciones correctas.
 
 - **Balanced Accuracy**  
-  Resulta especialmente importante en HAM10000, ya que compensa el efecto del desbalanceo entre clases.
+  Resulta especialmente importante en HAM10000, ya que compensa el efecto del desbalanceo entre clases y ofrece una visión más justa del rendimiento por categoría.
 
 - **Macro F1-score**  
-  Resume el equilibrio entre precisión y exhaustividad dando el mismo peso a cada clase.
+  Resume el equilibrio entre precisión y exhaustividad asignando el mismo peso a cada clase, lo que la hace especialmente útil cuando existen clases minoritarias.
 
 Además, el proyecto genera artefactos de evaluación complementarios:
 
@@ -199,21 +221,19 @@ La organización actual del proyecto responde a varias decisiones de diseño rel
    El procesamiento de imágenes se desacopla del entrenamiento federado mediante un dataset tabular cacheado. Esto reduce tiempos de ejecución y facilita la experimentación.
 
 2. **Diseño modular del software**  
-   El código se divide en módulos de configuración, datos, visión, modelos, federación, reporting, servidor y edge. Esto hace más sencillo mantener el proyecto y extenderlo en futuras fases del TFG.
+   El código se divide en módulos de configuración, datos, visión, modelos, federación, reporting, servidor, edge y utilidades. Esto hace más sencillo mantener el proyecto y extenderlo en futuras fases del TFG.
 
 3. **Simulación explícita de escenarios Non-IID**  
    El uso de `MobileFleetSimulator` permite estudiar cómo cambia el rendimiento cuando los clientes no comparten la misma distribución de clases.
 
 4. **Privacidad como hipótesis de trabajo del sistema**  
-   Aunque la implementación actual es una simulación, ya incorpora la posibilidad de perturbar actualizaciones locales con ruido gaussiano, lo que sirve como base para discutir privacidad en entornos distribuidos.
+   Aunque la implementación actual es una simulación offline, ya incorpora la posibilidad de perturbar actualizaciones locales con ruido gaussiano. Esto sirve como base experimental para discutir privacidad en entornos distribuidos.
 
 5. **Puente entre prototipo académico y evolución futura**  
-   La existencia de `server/hospital_server.py` y `edge/mobile_app.py` permite distinguir desde ahora entre una simulación experimental y una futura arquitectura más cercana a un despliegue real.
+   La existencia de `server/hospital_server.py` y `edge/mobile_app.py` permite distinguir desde ahora entre la simulación experimental actual y una futura arquitectura más cercana a un despliegue distribuido realista.
 
 ---
 
 **Autor:** Paula Calvo  
 **Tutor:** Fran J. Glez  
 **Universidad:** [uc3m.es](https://www.uc3m.es)
-"""
-
