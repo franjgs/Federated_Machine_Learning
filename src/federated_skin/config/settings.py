@@ -9,6 +9,8 @@ Aquí se definen, por ejemplo:
 - número de rondas federadas,
 - número de clientes por ronda,
 - tamaño local de cada cliente,
+- parámetros del modelo sobre features,
+- parámetros del modelo sobre imagen,
 - y parámetros de agregación o early stopping.
 """
 
@@ -20,7 +22,7 @@ class FederatedExperimentConfig:
     Atributos
     ---------
     seed_size : int
-        Número de imágenes usadas para entrenar el modelo global inicial.
+        Número de muestras usadas para entrenar el modelo global inicial.
 
     test_size : float
         Proporción del dataset total reservada para evaluación final.
@@ -32,7 +34,35 @@ class FederatedExperimentConfig:
         Número de clientes móviles simulados en cada ronda.
 
     local_images_per_client : int
-        Número de imágenes que utiliza cada cliente en su actualización local.
+        Número de muestras que utiliza cada cliente en su actualización local.
+
+    feature_model_type : str
+        Tipo de modelo usado sobre el vector de características.
+        Valores típicos:
+        - "linear"
+        - "mlp"
+
+    image_model_type : str
+        Tipo de modelo usado sobre imagen.
+        Valores típicos:
+        - "cnn"
+
+    image_input_mode : str
+        Tipo de entrada usado en el pipeline basado en imagen.
+        Valores típicos:
+        - "original"
+        - "preprocessed"
+        - "segmented"
+        - "preprocessed_plus_mask"
+
+    image_size : int
+        Tamaño cuadrado al que se redimensionan las imágenes de entrada.
+
+    learning_rate : float
+        Tasa de aprendizaje de los modelos basados en imagen.
+
+    batch_size : int
+        Tamaño de batch usado en modelos basados en imagen.
 
     local_epochs : int
         Número de épocas locales que ejecuta cada cliente antes de enviar
@@ -75,6 +105,12 @@ class FederatedExperimentConfig:
         rounds: int = 20,
         clients_per_round: int = 30,
         local_images_per_client: int = 12,
+        feature_model_type: str = "linear",
+        image_model_type: str = "cnn",
+        image_input_mode: str = "preprocessed",
+        image_size: int = 224,
+        learning_rate: float = 1e-3,
+        batch_size: int = 16,
         local_epochs: int = 1,
         initial_epochs: int = 20,
         client_class_bias: float = 0.60,
@@ -90,6 +126,14 @@ class FederatedExperimentConfig:
         self.rounds = rounds
         self.clients_per_round = clients_per_round
         self.local_images_per_client = local_images_per_client
+
+        self.feature_model_type = feature_model_type
+        self.image_model_type = image_model_type
+        self.image_input_mode = image_input_mode
+        self.image_size = image_size
+        self.learning_rate = learning_rate
+        self.batch_size = batch_size
+
         self.local_epochs = local_epochs
         self.initial_epochs = initial_epochs
         self.client_class_bias = client_class_bias

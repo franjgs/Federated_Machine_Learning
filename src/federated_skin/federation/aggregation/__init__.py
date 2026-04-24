@@ -1,0 +1,1 @@
+"""Funciones de agregación para aprendizaje federado."""from federated_skin.federation.aggregation.linear import aggregate_client_statesfrom federated_skin.federation.aggregation.mlp import aggregate_mlp_client_statesfrom federated_skin.federation.aggregation.nn import aggregate_neural_client_states

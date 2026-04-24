@@ -1,23 +1,29 @@
-"""Lógica principal del experimento federado."""
+"""Lógica principal del experimento federado basado en imágenes."""
 
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from federated_skin.config.settings import FederatedExperimentConfig
-from federated_skin.data.splits import df_to_xy, make_train_test_split
-from federated_skin.federation.aggregation.factory import build_feature_aggregator
+from federated_skin.data.image_dataset import ImageDataset
+from federated_skin.data.splits import (
+    ensure_all_dataset_classes_in_seed,
+    make_train_test_split,
+)
+from federated_skin.federation.aggregation.nn import aggregate_neural_client_states
 from federated_skin.federation.clients import MobileFleetSimulator
 from federated_skin.models.base import FederatedModelBase
-from federated_skin.models.feature_models.factory import build_feature_model
+from federated_skin.models.image_models.factory import build_image_model
 from federated_skin.utils.logging_utils import log_info
 
 
-class FederatedExperimentResult:
+class FederatedImageExperimentResult:
     """
-    Resultado final del experimento federado.
+    Resultado final del experimento federado basado en imágenes.
     """
 
     def __init__(
@@ -39,65 +45,107 @@ class FederatedExperimentResult:
         self.test_df = test_df
 
 
-class FederatedExperiment:
+class FederatedImageExperiment:
     """
-    Orquestador del experimento federado.
+    Orquestador del experimento federado basado en imágenes.
 
-    Este experimento trabaja, por ahora, con modelos entrenados sobre
-    vectores de características ya extraídas a partir de las imágenes.
+    Este experimento trabaja con imágenes como entrada directa al modelo.
+    La señal concreta de entrada se controla con `image_input_mode`, por
+    ejemplo:
+    - "original"
+    - "preprocessed"
+    - "segmented"
+    - "preprocessed_plus_mask"
 
-    El tipo de modelo concreto se selecciona desde la configuración.
-    Actualmente se soportan:
-    - "linear"
-    - "mlp"
+    El tipo de modelo de imagen se selecciona mediante `image_model_type`.
+    Actualmente se soporta:
+    - "cnn"
     """
 
     def __init__(
         self,
-        df_features: pd.DataFrame,
+        metadata_path: Path,
+        images_dir: Path,
         config: FederatedExperimentConfig,
         logger: object | None = None,
     ) -> None:
-        self.df_features = df_features
+        self.metadata_path = metadata_path
+        self.images_dir = images_dir
         self.config = config
         self.logger = logger
-        self.feature_aggregator = build_feature_aggregator(
-            model_type=self.config.feature_model_type,
-        )
 
-    def run(self) -> FederatedExperimentResult:
+    def run(self) -> FederatedImageExperimentResult:
         """
-        Ejecuta el experimento federado completo.
+        Ejecuta el experimento federado completo basado en imágenes.
 
         El flujo general es:
-        1. dividir los datos en seed, pool móvil y test,
-        2. entrenar el modelo global inicial con el seed,
-        3. simular rondas federadas con clientes móviles,
-        4. agregar actualizaciones locales,
-        5. evaluar sobre test fijo y aplicar early stopping.
+        1. construir el índice de imágenes,
+        2. dividir la metadata en seed, pool móvil y test,
+        3. garantizar cobertura de clases en seed,
+        4. materializar tensores de imagen para seed y test,
+        5. entrenar el modelo global inicial,
+        6. simular rondas federadas con clientes móviles,
+        7. agregar actualizaciones locales,
+        8. evaluar sobre test fijo y aplicar early stopping.
 
         Returns
         -------
-        FederatedExperimentResult
+        FederatedImageExperimentResult
             Resultado final del experimento.
         """
+        image_dataset = ImageDataset(
+            metadata_path=self.metadata_path,
+            images_dir=self.images_dir,
+            image_size=self.config.image_size,
+            image_input_mode=self.config.image_input_mode,
+        )
+
+        # Guardamos el índice original del ImageDataset para poder recuperar
+        # correctamente las muestras después de hacer splits y reset_index.
+        df_images = image_dataset.to_dataframe().copy()
+        df_images["dataset_index"] = df_images.index
+
         df_seed, df_pool, df_test = make_train_test_split(
-            df=self.df_features,
+            df=df_images,
             seed_size=self.config.seed_size,
             test_size=self.config.test_size,
             random_state=self.config.random_state,
         )
 
-        log_info(self.logger, "Seed inicial: %d imágenes", len(df_seed))
-        log_info(self.logger, "Pool móvil: %d imágenes", len(df_pool))
-        log_info(self.logger, "Test fijo: %d imágenes", len(df_test))
-
-        X_seed, y_seed = df_to_xy(df_seed)
-        X_test, y_test = df_to_xy(df_test)
-
-        global_model = build_feature_model(
-            model_type=self.config.feature_model_type,
+        df_seed, df_pool, df_test = ensure_all_dataset_classes_in_seed(
+            df_seed=df_seed,
+            df_pool=df_pool,
+            df_test=df_test,
+            label_col="dx",
             random_state=self.config.random_state,
+        )
+
+        log_info(self.logger, "Seed inicial (imagen): %d imágenes", len(df_seed))
+        log_info(self.logger, "Pool móvil (imagen): %d imágenes", len(df_pool))
+        log_info(self.logger, "Test fijo (imagen): %d imágenes", len(df_test))
+
+        log_info(
+            self.logger,
+            "Clases presentes en seed (imagen): %s",
+            sorted(df_seed["dx"].unique().tolist()),
+        )
+        log_info(
+            self.logger,
+            "Clases presentes en test (imagen): %s",
+            sorted(df_test["dx"].unique().tolist()),
+        )
+
+        X_seed, y_seed = self._rows_to_xy(image_dataset, df_seed)
+        X_test, y_test = self._rows_to_xy(image_dataset, df_test)
+
+        in_channels = X_seed.shape[-1]
+
+        global_model = build_image_model(
+            model_type=self.config.image_model_type,
+            random_state=self.config.random_state,
+            in_channels=in_channels,
+            learning_rate=self.config.learning_rate,
+            batch_size=self.config.batch_size,
         )
         global_model.fit_initial(
             X_seed,
@@ -109,8 +157,9 @@ class FederatedExperiment:
 
         log_info(
             self.logger,
-            "Baseline | model=%s | acc=%.4f | bal_acc=%.4f | macro_f1=%.4f",
-            self.config.feature_model_type,
+            "Baseline | image_model=%s | image_mode=%s | acc=%.4f | bal_acc=%.4f | macro_f1=%.4f",
+            self.config.image_model_type,
+            self.config.image_input_mode,
             baseline["accuracy"],
             baseline["balanced_accuracy"],
             baseline["macro_f1"],
@@ -160,7 +209,7 @@ class FederatedExperiment:
                 if client_df.empty:
                     continue
 
-                X_client, y_client = df_to_xy(client_df)
+                X_client, y_client = self._rows_to_xy(image_dataset, client_df)
                 total_images_this_round += len(client_df)
 
                 client_state = global_model.client_update(
@@ -171,10 +220,9 @@ class FederatedExperiment:
                 )
                 client_states.append(client_state)
 
-            self.feature_aggregator(
+            self._aggregate_global_model(
                 global_model=global_model,
                 client_states=client_states,
-                server_lr=self.config.server_lr,
             )
 
             metrics = global_model.evaluate(X_test, y_test)
@@ -210,9 +258,10 @@ class FederatedExperiment:
 
             log_info(
                 self.logger,
-                "Ronda %02d | model=%s | clientes=%d | imgs=%d | acc=%.4f | bal_acc=%.4f | macro_f1=%.4f",
+                "Ronda %02d | image_model=%s | image_mode=%s | clientes=%d | imgs=%d | acc=%.4f | bal_acc=%.4f | macro_f1=%.4f",
                 round_idx,
-                self.config.feature_model_type,
+                self.config.image_model_type,
+                self.config.image_input_mode,
                 len(client_states),
                 total_images_this_round,
                 metrics["accuracy"],
@@ -232,19 +281,25 @@ class FederatedExperiment:
 
         history_df = pd.DataFrame(history_rows)
 
-        best_balanced_model = build_feature_model(
-            model_type=self.config.feature_model_type,
+        best_balanced_model = build_image_model(
+            model_type=self.config.image_model_type,
             random_state=self.config.random_state,
+            in_channels=in_channels,
+            learning_rate=self.config.learning_rate,
+            batch_size=self.config.batch_size,
         )
         best_balanced_model.set_state(best_state_bal)
 
-        best_macro_f1_model = build_feature_model(
-            model_type=self.config.feature_model_type,
+        best_macro_f1_model = build_image_model(
+            model_type=self.config.image_model_type,
             random_state=self.config.random_state,
+            in_channels=in_channels,
+            learning_rate=self.config.learning_rate,
+            batch_size=self.config.batch_size,
         )
         best_macro_f1_model.set_state(best_state_f1)
 
-        return FederatedExperimentResult(
+        return FederatedImageExperimentResult(
             final_model=global_model,
             best_balanced_model=best_balanced_model,
             best_macro_f1_model=best_macro_f1_model,
@@ -253,3 +308,65 @@ class FederatedExperiment:
             best_macro_f1_round=best_macro_f1_round,
             test_df=df_test,
         )
+
+    def _rows_to_xy(
+        self,
+        image_dataset: ImageDataset,
+        df_rows: pd.DataFrame,
+    ) -> tuple[np.ndarray, list[str]]:
+        """
+        Convierte un subconjunto de metadata en arrays de imagen y etiquetas.
+
+        Parameters
+        ----------
+        image_dataset : ImageDataset
+            Dataset de imágenes configurado.
+        df_rows : pd.DataFrame
+            Filas seleccionadas del índice de imágenes.
+
+        Returns
+        -------
+        tuple[np.ndarray, list[str]]
+            Imágenes en formato NHWC y etiquetas en texto.
+        """
+        images = []
+        labels = []
+
+        for row in df_rows.itertuples():
+            sample = image_dataset.get_sample(row.dataset_index)
+            images.append(sample["image"])
+            labels.append(sample["dx"])
+
+        X = np.stack(images, axis=0).astype(np.float32)
+        return X, labels
+
+    def _aggregate_global_model(
+        self,
+        global_model: FederatedModelBase,
+        client_states: list[dict],
+    ) -> None:
+        """
+        Agrega las actualizaciones locales en el modelo global de imagen.
+
+        Actualmente se utiliza agregación de redes neuronales basada en
+        media ponderada de state_dict por número de muestras.
+
+        Parameters
+        ----------
+        global_model : FederatedModelBase
+            Modelo global actual.
+        client_states : list[dict]
+            Lista de estados locales devueltos por los clientes.
+        """
+        global_state = global_model.get_state()
+
+        new_state_dict = aggregate_neural_client_states(
+            global_state_dict=global_state["state_dict"],
+            client_states=client_states,
+            server_lr=self.config.server_lr,
+        )
+
+        new_state = dict(global_state)
+        new_state["state_dict"] = new_state_dict
+
+        global_model.set_state(new_state)

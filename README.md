@@ -10,16 +10,26 @@ Este repositorio recoge el desarrollo de un **Trabajo Fin de Grado (TFG)** centr
 
 La motivación del proyecto surge de un problema real en aplicaciones biomédicas: los datos son sensibles, difíciles de centralizar y, a menudo, se generan en entornos distribuidos. Frente al enfoque clásico de recopilar todas las imágenes en un único servidor para entrenar un modelo, este trabajo estudia una alternativa en la que parte del procesamiento y del aprendizaje se desplaza hacia el borde de la red, por ejemplo a aplicaciones móviles o nodos clínicos distribuidos.
 
-El objetivo general del TFG es construir una base de software que permita explorar este enfoque de forma progresiva. En la versión actual del repositorio, el sistema se implementa como una **simulación federada offline en Python** usando el dataset **HAM10000** como referencia experimental. A partir de imágenes dermatoscópicas, el sistema extrae características visuales relevantes, entrena un modelo inicial en un nodo central y simula múltiples clientes que actualizan dicho modelo con datos distribuidos de forma no idéntica.
+El objetivo general del TFG es construir una base de software que permita explorar este enfoque de forma progresiva. En la versión actual del repositorio, el sistema se implementa principalmente como una **simulación federada offline en Python** usando el dataset **HAM10000** como referencia experimental.
 
-Es importante subrayar que la implementación actual **no constituye todavía un despliegue federado real** sobre dispositivos móviles ni una infraestructura cliente-servidor operando de forma distribuida. En este estado, el repositorio funciona como un **banco de pruebas experimental**, pensado para validar decisiones de diseño, estudiar el comportamiento del sistema y servir de base técnica para fases posteriores.
+En su estado actual, el proyecto ya soporta **dos líneas de trabajo complementarias**:
+
+- un enfoque **feature-based**, en el que las imágenes dermatoscópicas se preprocesan, segmentan y transforman en vectores de características clínicas y visuales;
+- y un enfoque **image-based**, en el que un modelo convolucional opera directamente sobre la imagen, ya sea original, preprocesada, segmentada o enriquecida con máscara.
+
+Esto permite estudiar el problema desde dos perspectivas distintas:
+
+- una más interpretable y ligera, basada en variables diseñadas manualmente;
+- y otra más cercana a modelos de visión profunda, basada en entrada directa de imagen.
+
+Es importante subrayar que la implementación actual **no constituye todavía un despliegue federado real** sobre dispositivos móviles ni una infraestructura cliente-servidor distribuida de extremo a extremo. En este estado, el repositorio funciona como un **banco de pruebas experimental**, pensado para validar decisiones de diseño, estudiar el comportamiento del sistema y servir de base técnica para fases posteriores.
 
 Precisamente, uno de los objetivos del TFG es que esta base evolucione hacia una arquitectura más realista, en la que exista:
 
-- un **nodo central hospitalario** ejecutándose como servidor agregador,
-- uno o varios **nodos edge o móviles** ejecutándose como clientes independientes,
-- intercambio explícito de estados o actualizaciones del modelo,
-- separación real entre entrenamiento local y agregación central,
+- un **nodo central hospitalario** ejecutándose como servidor agregador;
+- uno o varios **nodos edge o móviles** ejecutándose como clientes independientes;
+- intercambio explícito de estados o actualizaciones del modelo;
+- separación real entre entrenamiento local y agregación central;
 - y, eventualmente, mecanismos de comunicación y sincronización más cercanos a un entorno distribuido real.
 
 Aunque la versión actual sea offline, ya permite:
@@ -27,7 +37,7 @@ Aunque la versión actual sea offline, ya permite:
 - estudiar la evolución del modelo global a partir de actualizaciones locales;
 - analizar el efecto de distribuciones **Non-IID** entre clientes;
 - incorporar mecanismos simples de privacidad, como ruido gaussiano en las actualizaciones;
-- diferenciar conceptualmente un **nodo central** y un **nodo edge/móvil**;
+- comparar distintos tipos de modelo dentro de un mismo marco experimental;
 - y organizar el software de forma modular para facilitar futuras extensiones.
 
 Desde el punto de vista académico, el trabajo se sitúa en la intersección de varias áreas:
@@ -36,9 +46,10 @@ Desde el punto de vista académico, el trabajo se sitúa en la intersección de 
 - aprendizaje federado;
 - computación en el borde;
 - privacidad en sistemas distribuidos;
+- visión artificial;
 - y arquitectura de software científico reproducible.
 
-El repositorio sirve así tanto como soporte técnico del TFG como entorno de experimentación, y también como punto de entrada para que una nueva desarrolladora pueda comprender el proyecto, identificar sus bloques funcionales y evolucionarlo hacia versiones más realistas.
+El repositorio sirve así tanto como soporte técnico del TFG como entorno de experimentación, y también como base para evolucionar progresivamente hacia una arquitectura federada más realista.
 
 ## 🏗️ Arquitectura del sistema
 
@@ -47,7 +58,7 @@ La arquitectura del proyecto está diseñada con una doble perspectiva:
 - por un lado, **dar soporte a la simulación federada offline actual**;
 - por otro, **preparar una evolución futura hacia un entorno distribuido más realista**, con separación efectiva entre servidor hospitalario y clientes edge.
 
-Por eso, la organización del código distingue entre procesamiento de imagen, construcción de dataset, modelado, simulación federada, reporting y módulos específicos de servidor y cliente.
+Por eso, la organización del código distingue entre configuración, datos, visión, modelos, simulación federada, reporting y módulos específicos de servidor y cliente.
 
 ### 1. Nodo central
 
@@ -58,9 +69,9 @@ El nodo central representa el papel del hospital o servidor agregador dentro del
 - **evaluación continua del rendimiento** sobre un conjunto de test independiente;
 - **persistencia de artefactos**, como modelos, métricas, históricos y figuras.
 
-En la versión actual, estas funciones se implementan sobre todo dentro de la simulación offline, apoyándose en `FederatedGlobalModel`, en la lógica de agregación federada y en la orquestación realizada por `FederatedExperiment`.
+En la versión actual, estas funciones se implementan sobre todo dentro de la simulación offline, apoyándose en los experimentos federados y en la lógica de agregación correspondiente a cada familia de modelos.
 
-Además, el repositorio incluye un módulo `server/hospital_server.py` que representa la dirección futura del proyecto: separar de manera explícita la lógica del servidor hospitalario respecto al resto del sistema.
+Además, el repositorio incluye módulos como `server/hospital_server.py`, que representan la dirección futura del proyecto: separar de manera explícita la lógica del servidor hospitalario respecto al resto del sistema.
 
 ### 2. Clientes simulados y proyección edge
 
@@ -73,82 +84,153 @@ Sus responsabilidades son:
 - **simular distribuciones Non-IID**, mediante un sesgo de clase configurable;
 - **devolver una actualización local** al servidor, opcionalmente perturbada con ruido gaussiano para simular privacidad.
 
-En la implementación actual, este comportamiento se modela dentro de la simulación offline mediante `MobileFleetSimulator` y el método `client_update` de `FederatedGlobalModel`.
+En la implementación actual, este comportamiento se modela dentro de la simulación offline mediante `MobileFleetSimulator` y los métodos de actualización local de cada modelo.
 
 Al mismo tiempo, el proyecto incluye el módulo `edge/mobile_app.py`, que no sustituye a la simulación actual, pero sí sirve como punto de partida para una futura transición hacia un cliente edge más realista.
 
-### 3. Procesamiento visual y extracción de características
+### 3. Procesamiento visual y construcción de entradas
 
-Antes del entrenamiento federado, las imágenes se transforman en vectores numéricos mediante una tubería de visión artificial.
+Antes del entrenamiento federado, el repositorio puede trabajar de dos maneras distintas.
 
-Esta parte del sistema se encarga de:
+#### Enfoque feature-based
 
-- **preprocesar la imagen**;
-- **segmentar la lesión**;
-- **extraer un vector de características clínicas y visuales**, inspirado en criterios ABCD y en descriptores de textura.
+Las imágenes se transforman en vectores numéricos mediante una tubería clásica de visión artificial que realiza:
 
-Esta responsabilidad recae en `VisionPipeline`.
+- **preprocesado de imagen**;
+- **segmentación de la lesión**;
+- **extracción de características clínicas y visuales**, inspiradas en criterios ABCD y en descriptores de textura.
 
-### 4. Construcción del dataset experimental
+Esta responsabilidad se reparte entre los módulos del paquete `vision`, y se orquesta mediante `VisionPipeline`.
 
-El repositorio no trabaja directamente con imágenes en cada ronda federada. Primero genera un dataset tabular de características y etiquetas, que luego puede cachearse para reutilizarse en ejecuciones sucesivas.
+#### Enfoque image-based
 
-Esto permite:
+Las imágenes también pueden utilizarse directamente como entrada de un modelo convolucional. En este caso, el sistema soporta distintos modos de entrada, entre ellos:
+
+- imagen original;
+- imagen preprocesada;
+- imagen segmentada;
+- imagen preprocesada con máscara añadida como canal extra.
+
+Esto permite experimentar con distintas representaciones de la señal visual sin cambiar la lógica general del experimento federado.
+
+### 4. Construcción de datasets experimentales
+
+El repositorio soporta dos tipos de datasets experimentales.
+
+#### Dataset de características
+
+En la rama feature-based, primero se genera un dataset tabular de características y etiquetas, que puede cachearse para reutilizarse en ejecuciones sucesivas. Esto permite:
 
 - reducir drásticamente el tiempo de experimentación;
 - desacoplar el procesamiento de imagen de la simulación federada;
 - facilitar comparativas entre configuraciones;
-- y convertir el repositorio en una plataforma experimental más cómoda para explorar modelos y estrategias de agregación.
+- y convertir el repositorio en una plataforma experimental más cómoda.
 
 La clase encargada de este bloque es `FeatureDatasetBuilder`.
 
----
+#### Dataset de imágenes
+
+En la rama image-based, el sistema construye un índice de imágenes válidas y genera las muestras bajo demanda según el modo de entrada configurado. Esta responsabilidad recae en `ImageDataset`.
+
+### 5. Modelos actualmente soportados
+
+En este momento, el repositorio soporta las siguientes familias de modelos:
+
+#### Sobre vectores de características
+- modelo lineal (`linear`);
+- perceptrón multicapa (`mlp`).
+
+#### Sobre imagen
+- red convolucional básica (`cnn`).
+
+Esta separación permite comparar enfoques más ligeros e interpretables frente a enfoques basados en visión profunda, dentro de una misma arquitectura experimental.
 
 ## 📁 Estructura del repositorio
 
-La organización actual del repositorio está pensada para que el proyecto pueda crecer sin concentrar toda la lógica en un único script:
+La organización actual del repositorio está pensada para separar claramente las distintas responsabilidades del sistema y permitir que el proyecto crezca sin concentrar toda la lógica en un único script.
 
 ```text
 federated-skin-lesion/
 ├── README.md
+├── LICENSE
 ├── notebooks/
-│   └── federated_skin_lesion_classifier.ipynb
+│   ├── federated_skin_lesion_classifier.ipynb
+│   ├── skin_lesions_classifier.ipynb
+│   └── Test_segmentation.ipynb
 ├── experiments/
+│   ├── run_federated_features.py
+│   ├── run_federated_images.py
 │   └── run_federated_simulation.py
 ├── src/
 │   └── federated_skin/
+│       ├── __init__.py
 │       ├── config/
+│       │   ├── __init__.py
 │       │   ├── paths.py
 │       │   └── settings.py
 │       ├── data/
-│       │   ├── dataset_builder.py
+│       │   ├── __init__.py
+│       │   ├── feature_dataset_builder.py
+│       │   ├── image_dataset.py
+│       │   ├── metadata.py
 │       │   └── splits.py
 │       ├── vision/
+│       │   ├── __init__.py
+│       │   ├── preprocessing.py
+│       │   ├── segmentation.py
+│       │   ├── feature_extraction.py
 │       │   └── pipeline.py
 │       ├── models/
-│       │   └── global_model.py
+│       │   ├── __init__.py
+│       │   ├── base.py
+│       │   ├── feature_models/
+│       │   │   ├── __init__.py
+│       │   │   ├── factory.py
+│       │   │   ├── linear_model.py
+│       │   │   └── mlp_model.py
+│       │   └── image_models/
+│       │       ├── cnn_model.py
+│       │       └── factory.py
 │       ├── federation/
-│       │   ├── aggregation.py
+│       │   ├── __init__.py
 │       │   ├── clients.py
-│       │   └── experiment.py
+│       │   ├── experiment.py
+│       │   ├── image_experiment.py
+│       │   └── aggregation/
+│       │       ├── __init__.py
+│       │       ├── factory.py
+│       │       ├── linear.py
+│       │       ├── mlp.py
+│       │       └── nn.py
+│       ├── reporting/
+│       │   ├── __init__.py
+│       │   └── reports.py
+│       ├── utils/
+│       │   └── logging_utils.py
 │       ├── server/
 │       │   └── hospital_server.py
-│       ├── edge/
-│       │   └── mobile_app.py
-│       ├── reporting/
-│       │   └── reports.py
-│       └── utils/
-│           └── logging_utils.py
+│       └── edge/
+│           └── mobile_app.py
 ├── data/
 │   ├── raw/
-│   │   └── ham10000/
 │   ├── processed/
 │   └── artifacts/
 └── tests/
 ```
+---
+
 ## 🔄 Flujo de ejecución del experimento
 
-La ejecución principal del proyecto, en su estado actual, se realiza a través de `experiments/run_federated_simulation.py`. Este script implementa la **simulación federada offline** sobre la que se apoyan los experimentos del repositorio.
+La ejecución principal del proyecto, en su estado actual, se realiza mediante scripts separados según el tipo de entrada y modelo que se quiera estudiar.
+
+Actualmente existen dos puntos de entrada principales:
+
+- `experiments/run_federated_features.py`
+- `experiments/run_federated_images.py`
+
+Esto refleja la separación entre las dos ramas experimentales del repositorio: la basada en características y la basada en imagen.
+
+### A. Flujo del experimento feature-based
 
 De forma resumida, el flujo es el siguiente:
 
@@ -171,13 +253,13 @@ De forma resumida, el flujo es el siguiente:
    - `df_test`: conjunto independiente para evaluación.
 
 4. **Entrenamiento inicial del modelo global**  
-   `FederatedGlobalModel` se ajusta primero con `df_seed`, estableciendo una línea base antes de iniciar las rondas federadas.
+   El modelo seleccionado para features (`linear` o `mlp`) se ajusta primero con `df_seed`, estableciendo una línea base antes de iniciar las rondas federadas.
 
 5. **Simulación de rondas federadas**  
    En cada ronda:
    - `MobileFleetSimulator` selecciona clientes simulados y asigna muestras locales;
-   - cada cliente realiza una actualización local mediante `client_update`;
-   - las actualizaciones se combinan mediante la lógica definida en `federation/aggregation.py`;
+   - cada cliente realiza una actualización local;
+   - las actualizaciones se combinan mediante la lógica de agregación correspondiente al modelo;
    - el modelo global actualizado se evalúa sobre `df_test`.
 
 6. **Selección de checkpoints y persistencia de resultados**  
@@ -188,7 +270,47 @@ De forma resumida, el flujo es el siguiente:
    - el histórico de métricas;
    - y los artefactos de evaluación generados por `reporting/reports.py`.
 
-Este flujo corresponde a la **versión experimental offline** del proyecto. La arquitectura modular actual está pensada para que, en fases posteriores del TFG, parte de estas responsabilidades puedan trasladarse a una interacción más realista entre `server/hospital_server.py` y `edge/mobile_app.py`.
+### B. Flujo del experimento image-based
+
+En la rama basada en imagen, el flujo es análogo, pero cambiando la naturaleza de la entrada y del modelo:
+
+1. **Construcción del índice de imágenes**  
+   `ImageDataset` carga la metadata, verifica las rutas válidas y prepara el acceso a las muestras de imagen.
+
+2. **Selección del modo de entrada visual**  
+   Según la configuración, cada muestra puede construirse como:
+   - imagen original;
+   - imagen preprocesada;
+   - imagen segmentada;
+   - o imagen preprocesada con máscara.
+
+3. **Partición en seed, pool y test**  
+   La metadata de imágenes se divide en:
+   - `df_seed`;
+   - `df_pool`;
+   - `df_test`.
+
+   Además, el sistema garantiza que el conjunto seed contenga representación de todas las clases presentes en el dataset experimental.
+
+4. **Entrenamiento inicial del modelo convolucional**  
+   El modelo `cnn` se entrena primero con el conjunto seed y se evalúa sobre test para establecer una línea base.
+
+5. **Rondas federadas sobre imagen**  
+   En cada ronda:
+   - se simulan clientes con subconjuntos locales de imágenes;
+   - cada cliente actualiza localmente la CNN;
+   - el servidor agrega los `state_dict` locales mediante media ponderada;
+   - el nuevo modelo global se evalúa sobre test.
+
+6. **Guardado de modelos e histórico**  
+   Igual que en la rama feature-based, se guardan modelos, histórico y figuras del experimento.
+
+### Estado actual de la ejecución
+
+En este momento, ambos flujos son **operativos** dentro del marco de simulación federada offline:
+
+- la rama **feature-based** se encuentra más madura y ofrece resultados experimentales más sólidos;
+- la rama **image-based** ya funciona de extremo a extremo, aunque sigue en fase de ajuste y exploración.
 
 ---
 
@@ -211,26 +333,52 @@ Además, el proyecto genera artefactos de evaluación complementarios:
 - **matriz de confusión**, para analizar visualmente los errores de clasificación;
 - **histórico de métricas por ronda**, para estudiar la evolución del modelo global a lo largo del entrenamiento federado.
 
+En la rama basada en imagen, el reporting detallado por clases todavía está menos desarrollado que en la rama de características, aunque la infraestructura principal de evaluación ya está operativa.
+
 ---
 
 ## ⚖️ Justificación de ingeniería
 
 La organización actual del proyecto responde a varias decisiones de diseño relevantes para el TFG:
 
-1. **Separación entre procesamiento visual y simulación federada**  
-   El procesamiento de imágenes se desacopla del entrenamiento federado mediante un dataset tabular cacheado. Esto reduce tiempos de ejecución y facilita la experimentación.
+1. **Separación entre rama feature-based y rama image-based**  
+   El sistema soporta dos estrategias complementarias para abordar el problema: una basada en variables extraídas manualmente y otra basada en entrada directa de imagen.
 
-2. **Diseño modular del software**  
+2. **Desacoplamiento entre procesamiento visual y experimentación**  
+   En la rama de features, el procesamiento de imagen se desacopla del entrenamiento federado mediante un dataset cacheado, reduciendo tiempos de ejecución y facilitando la experimentación.
+
+3. **Diseño modular del software**  
    El código se divide en módulos de configuración, datos, visión, modelos, federación, reporting, servidor, edge y utilidades. Esto hace más sencillo mantener el proyecto y extenderlo en futuras fases del TFG.
 
-3. **Simulación explícita de escenarios Non-IID**  
+4. **Simulación explícita de escenarios Non-IID**  
    El uso de `MobileFleetSimulator` permite estudiar cómo cambia el rendimiento cuando los clientes no comparten la misma distribución de clases.
 
-4. **Privacidad como hipótesis de trabajo del sistema**  
+5. **Privacidad como hipótesis de trabajo del sistema**  
    Aunque la implementación actual es una simulación offline, ya incorpora la posibilidad de perturbar actualizaciones locales con ruido gaussiano. Esto sirve como base experimental para discutir privacidad en entornos distribuidos.
 
-5. **Puente entre prototipo académico y evolución futura**  
-   La existencia de `server/hospital_server.py` y `edge/mobile_app.py` permite distinguir desde ahora entre la simulación experimental actual y una futura arquitectura más cercana a un despliegue distribuido realista.
+6. **Preparación para evolución futura**  
+   La existencia de módulos como `server/hospital_server.py` y `edge/mobile_app.py` permite distinguir desde ahora entre la simulación experimental actual y una futura arquitectura más cercana a un despliegue distribuido realista.
+
+7. **Comparabilidad experimental**  
+   Mantener una interfaz similar entre modelos y experimentos facilita comparar configuraciones distintas dentro de una misma base de software.
+
+---
+
+## 🚀 Ejecución
+
+### Experimento basado en características
+
+```bash
+python experiments/run_federated_features.py
+```
+
+### Experimento basado en imagenes
+
+```bash
+python experiments/run_federated_images.py
+```
+
+Ambos scripts están pensados para poder lanzarse tanto desde terminal como desde entornos como Spyder, manteniendo un flujo de trabajo reproducible.
 
 ---
 
