@@ -382,6 +382,28 @@ Ambos scripts están pensados para poder lanzarse tanto desde terminal como desd
 
 ---
 
+## 📊 Baselines y estado actual del proyecto
+
+La siguiente tabla resume el papel de los principales enfoques implementados o utilizados como referencia dentro del proyecto.
+
+| Enfoque | Tipo de entrada | Escenario | Estado en el proyecto | Papel experimental | Observaciones |
+|---|---|---|---|---|---|
+| **SVM centralizada (RBF)** | Features extraídas | Centralizado | Baseline externo de referencia | Referencia de techo clásico sobre features | Ofrece una referencia útil para estimar el potencial del pipeline de visión clásica, pero no encaja de forma natural en el esquema federado incremental implementado. |
+| **Modelo lineal federado** | Features extraídas | Federado offline | Operativo y estable | Baseline federado principal | Es el modelo más maduro dentro del repositorio actual. Permite estudiar evolución por rondas, efecto Non-IID y agregación de actualizaciones locales. |
+| **MLP federado** | Features extraídas | Federado offline | Operativo | Extensión del baseline feature-based | Introduce mayor capacidad expresiva que el modelo lineal, manteniendo compatibilidad con el marco federado actual. Sigue en fase de ajuste experimental. |
+| **CNN federada básica** | Imagen directa | Federado offline | Operativa | Primera baseline image-based | Ya funciona de extremo a extremo dentro del pipeline federado, pero su rendimiento actual todavía está por debajo de la rama feature-based y requiere ajuste adicional. |
+| **AlexNet / CNN más profunda** | Imagen directa | Centralizado o federado futuro | Referencia de cuaderno / línea futura | Extensión prevista | Existe como referencia experimental previa en cuadernos, pero todavía no está integrada como backend completo dentro de la arquitectura modular actual. |
+
+### Lectura de esta comparación
+
+- La rama **feature-based** es actualmente la más sólida del proyecto.
+- La **SVM centralizada** sirve como referencia útil para comprobar que las características extraídas contienen señal discriminativa relevante.
+- El **modelo lineal federado** actúa como baseline principal del sistema en su estado actual.
+- La rama **image-based** ya es funcional, pero debe entenderse todavía como una línea en evolución y ajuste.
+- En consecuencia, el repositorio combina una base experimental ya operativa con una hoja de ruta clara hacia modelos de imagen más potentes y una arquitectura federada más realista.
+
+---
+
 **Autor:** Paula Calvo  
 **Tutor:** Fran J. Glez  
 **Universidad:** [uc3m.es](https://www.uc3m.es)
